@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}通知設定 - ニュースまとめ{% endblock %}
+{% block content %}
+<h1>通知設定</h1>
+
+{% if not smtp_configured %}
+<div class="flash error">
+  メール送信の設定（SMTP）がまだです。<code>.env</code> に <code>SMTP_USER</code> と <code>SMTP_PASSWORD</code> を設定してアプリを再起動してください。手順は README を参照してください。
+</div>
+{% endif %}
+
+<section class="card">
+  <h2>メール通知</h2>
+  <form method="post" action="/settings" class="form-grid">
+    <label>通知先メールアドレス
+      <input type="email" name="mail_to" value="{{ mail_to }}" placeholder="you@example.com">
+    </label>
+    <label>ダイジェストの配信時刻（カンマ区切り）
+      <input type="text" name="digest_times" value="{{ digest_times }}" placeholder="07:00,18:00">
+    </label>
+    <label class="check"><input type="checkbox" name="digest_enabled" value="1" {% if digest_enabled %}checked{% endif %}> 定時ダイジェストを送る（前回以降の新着をジャンル別にまとめて送信）</label>
+    <label class="check"><input type="checkbox" name="keyword_alert_enabled" value="1" {% if keyword_alert_enabled %}checked{% endif %}> キーワード通知を送る（下のキーワードを含む記事が出たらすぐ送信）</label>
+    <div><button type="submit" class="btn primary">保存</button></div>
+  </form>
+  <p class="muted">
+    送信サーバー: {{ smtp_host }}{% if smtp_user %}（{{ smtp_user }}）{% endif %} ·
+    フィード取得間隔: {{ fetch_interval }} 分
+    {% if next_digests %} · 次回のダイジェスト: {{ next_digests[0].strftime('%m/%d %H:%M') }}{% endif %}
+  </p>
+  <div class="inline">
+    <form method="post" action="/settings/test-mail"><button type="submit" class="btn">テストメールを送る</button></form>
+    <form method="post" action="/settings/send-digest"><button type="submit" class="btn">今すぐダイジェストを送る</button></form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>キーワード通知</h2>
+  <p class="muted">タイトルか概要にキーワードを含む新着記事があると、取得のたびにメールで知らせます（大文字・小文字は区別しません）。</p>
+  <form method="post" action="/keywords" class="inline">
+    <input type="text" name="words" required placeholder="例: ビットコイン, OpenAI, 上場">
+    <button type="submit" class="btn">追加</button>
+  </form>
+  <div class="chips">
+    {% for k in keywords %}
+      <form method="post" action="/keywords/{{ k.id }}/delete" class="chip">
+        <span>{{ k.word }}</span><button type="submit" title="削除">×</button>
+      </form>
+    {% else %}
+      <span class="muted">キーワードは未登録です。</span>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>サンプル経済ニュース</title>
+    <link>https://example.com/</link>
+    <item>
+      <title>日経平均が反発、&lt;b&gt;半導体株&lt;/b&gt;に買い</title>
+      <link>https://example.com/articles/1</link>
+      <guid>https://example.com/articles/1</guid>
+      <description><![CDATA[<p>東京株式市場で<strong>日経平均</strong>が反発した。</p>]]></description>
+      <pubDate>Sat, 10 Oct 2026 09:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>ビットコインが最高値を更新</title>
+      <link>https://example.com/articles/2</link>
+      <description>暗号資産市場で BTC が上昇。</description>
+      <pubDate>Sat, 10 Oct 2026 12:30:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>リンクのない記事</title>
+    </item>
+  </channel>
+</rss>

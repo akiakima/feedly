@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}フィード管理 - ニュースまとめ{% endblock %}
+{% block content %}
+<h1>フィード管理</h1>
+
+<section class="card">
+  <h2>フィードを追加</h2>
+  <p class="muted">RSS / Atom の URL か、サイトのトップページ URL を入力してください（フィードを自動で探します）。</p>
+  <form method="post" action="/feeds" class="form-grid">
+    <label>URL<input type="text" name="url" required placeholder="https://example.com/ または https://example.com/feed"></label>
+    <label>ジャンル
+      <select name="category_id">
+        <option value="">未分類</option>
+        {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>または新しいジャンル<input type="text" name="new_category" placeholder="例: 不動産"></label>
+    <label>表示名（任意）<input type="text" name="title" placeholder="空欄ならフィードのタイトル"></label>
+    <div><button type="submit" class="btn primary">追加</button></div>
+  </form>
+  <details class="hint">
+    <summary>キーワードでニュースを集めたいとき</summary>
+    <p>Google ニュースの検索結果は RSS で購読できます。次の URL の <code>キーワード</code> を置き換えて追加してください。</p>
+    <code class="block">https://news.google.com/rss/search?q=キーワード&amp;hl=ja&amp;gl=JP&amp;ceid=JP:ja</code>
+  </details>
+</section>
+
+<section class="card">
+  <h2>ジャンル</h2>
+  <form method="post" action="/categories" class="inline">
+    <input type="text" name="name" required placeholder="新しいジャンル名">
+    <button type="submit" class="btn">ジャンルを追加</button>
+  </form>
+  <table class="table">
+    <thead><tr><th>名前</th><th>並び順</th><th>フィード数</th><th></th></tr></thead>
+    <tbody>
+    {% for c in categories %}
+      <tr>
+        <td colspan="2">
+          <form method="post" action="/categories/{{ c.id }}/edit" class="inline">
+            <input type="text" name="name" value="{{ c.name }}" required>
+            <input type="number" name="position" value="{{ c.position }}" class="narrow">
+            <button type="submit" class="btn small">保存</button>
+          </form>
+        </td>
+        <td>{{ c.feeds|length }}</td>
+        <td>
+          <form method="post" action="/categories/{{ c.id }}/delete" data-confirm="ジャンル「{{ c.name }}」を削除しますか？（フィードは未分類に移動します）">
+            <button type="submit" class="btn small danger">削除</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>登録フィード</h2>
+  {% set all_feeds = [] %}
+  {% for c in categories %}{% for f in c.feeds %}{% set _ = all_feeds.append(f) %}{% endfor %}{% endfor %}
+  {% for f in uncategorized %}{% set _ = all_feeds.append(f) %}{% endfor %}
+  {% if not all_feeds %}<p class="muted">フィードがありません。</p>{% endif %}
+  <div class="feed-list">
+  {% for f in all_feeds %}
+    <div class="feed-row {% if not f.enabled %}disabled{% endif %}">
+      <form method="post" action="/feeds/{{ f.id }}/edit" class="feed-edit">
+        <input type="text" name="title" value="{{ f.title }}" required aria-label="表示名">
+        <input type="text" name="url" value="{{ f.url }}" required aria-label="URL" class="url">
+        <select name="category_id" aria-label="ジャンル">
+          <option value="">未分類</option>
+          {% for c in categories %}<option value="{{ c.id }}" {% if f.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn small">保存</button>
+      </form>
+      <div class="feed-status">
+        {% if not f.enabled %}<span class="badge">停止中</span>{% endif %}
+        {% if f.last_error %}<span class="badge error" title="{{ f.last_error }}">取得エラー</span>{% endif %}
+        <span class="muted">記事 {{ counts.get(f.id, 0) }} 件 · 最終取得 {{ f.last_fetched_at|localtime if f.last_fetched_at else '未取得' }}</span>
+        {% if f.last_error %}<div class="error-text">{{ f.last_error[:200] }}</div>{% endif %}
+      </div>
+      <div class="feed-buttons">
+        <form method="post" action="/feeds/{{ f.id }}/refresh"><button type="submit" class="btn small">今すぐ取得</button></form>
+        <form method="post" action="/feeds/{{ f.id }}/toggle"><button type="submit" class="btn small">{{ '停止' if f.enabled else '再開' }}</button></form>
+        <form method="post" action="/feeds/{{ f.id }}/delete" data-confirm="「{{ f.title }}」を削除しますか？記事も削除されます。">
+          <button type="submit" class="btn small danger">削除</button>
+        </form>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>インポート / エクスポート</h2>
+  <p class="muted">OPML 形式で feedly などとフィード一覧をやり取りできます。</p>
+  <div class="inline">
+    <a class="btn" href="/opml">OPML をダウンロード</a>
+    <form method="post" action="/opml" enctype="multipart/form-data" class="inline">
+      <input type="file" name="file" accept=".opml,.xml" required>
+      <button type="submit" class="btn">OPML を取り込む</button>
+    </form>
+    <form method="post" action="/feeds/presets">
+      <button type="submit" class="btn">おすすめフィードを追加</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - ニュースまとめ{% endblock %}
+{% block content %}
+{% set qs = ('category=' ~ category if category else '') ~ ('&feed=' ~ feed if feed else '') ~ ('&q=' ~ q|urlencode if q else '') %}
+<div class="list-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <div class="muted">{% if q %}「{{ q }}」の検索結果 · {% endif %}{{ total }} 件</div>
+  </div>
+  <div class="actions">
+    {% if view != 'starred' %}
+    <div class="tabs">
+      <a class="{% if view == 'unread' %}active{% endif %}" href="/?{{ qs }}&view=unread">未読</a>
+      <a class="{% if view == 'all' %}active{% endif %}" href="/?{{ qs }}&view=all">すべて</a>
+    </div>
+    {% endif %}
+    <form method="post" action="/refresh">
+      <input type="hidden" name="next" value="{{ request.url.path }}?{{ request.url.query }}">
+      <button type="submit" class="btn">更新</button>
+    </form>
+    {% if view != 'starred' %}
+    <form method="post" action="/mark-read" data-confirm="表示中の記事をすべて既読にしますか？">
+      <input type="hidden" name="category" value="{{ category }}">
+      <input type="hidden" name="feed" value="{{ feed or '' }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="next" value="{{ request.url.path }}?{{ request.url.query }}">
+      <button type="submit" class="btn">すべて既読</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not articles %}
+  <div class="empty">
+    {% if view == 'unread' %}未読の記事はありません。{% elif view == 'starred' %}「あとで読む」に保存した記事はありません。{% else %}記事がありません。{% endif %}
+    {% if not categories and not uncategorized %}<br><a href="/feeds">フィードを追加</a>してください。{% endif %}
+  </div>
+{% endif %}
+
+<ul class="articles">
+{% for a in articles %}
+  <li class="article {% if a.is_read %}read{% endif %}" data-id="{{ a.id }}">
+    <div class="article-body">
+      <a class="article-title" href="/articles/{{ a.id }}/open" target="_blank" rel="noopener" data-open>{{ a.title }}</a>
+      {% if a.summary %}<p class="summary">{{ a.summary }}</p>{% endif %}
+      <div class="meta">
+        <a href="/?feed={{ a.feed_id }}">{{ a.feed.title }}</a>
+        {% if a.feed.category %}<span class="tag">{{ a.feed.category.name }}</span>{% endif %}
+        <time title="{{ a.published_at|localtime('%Y/%m/%d %H:%M') }}">{{ a.published_at|ago }}</time>
+      </div>
+    </div>
+    <div class="article-actions">
+      <form method="post" action="/articles/{{ a.id }}/toggle-star">
+        <input type="hidden" name="next" value="{{ request.url.path }}?{{ request.url.query }}">
+        <button type="submit" class="icon star {% if a.is_starred %}on{% endif %}" data-action="toggle-star" title="あとで読む">★</button>
+      </form>
+      <form method="post" action="/articles/{{ a.id }}/toggle-read">
+        <input type="hidden" name="next" value="{{ request.url.path }}?{{ request.url.query }}">
+        <button type="submit" class="icon readmark" data-action="toggle-read" title="既読 / 未読">✓</button>
+      </form>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+
+{% if page > 1 or has_next %}
+<nav class="pager">
+  {% if page > 1 %}<a class="btn" href="/?{{ qs }}&view={{ view }}&page={{ page - 1 }}">← 前へ</a>{% endif %}
+  <span class="muted">{{ page }} ページ</span>
+  {% if has_next %}<a class="btn" href="/?{{ qs }}&view={{ view }}&page={{ page + 1 }}">次へ →</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

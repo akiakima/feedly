@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ニュースまとめ{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" type="button" aria-label="メニュー" onclick="document.body.classList.toggle('nav-open')">☰</button>
+  <a class="brand" href="/">ニュースまとめ</a>
+  <form class="search" action="/" method="get">
+    <input type="search" name="q" value="{{ q|default('') }}" placeholder="記事を検索">
+    <input type="hidden" name="view" value="all">
+  </form>
+  <nav class="toplinks">
+    <a href="/feeds">フィード管理</a>
+    <a href="/settings">通知設定</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <a class="nav-item {% if request.url.path == '/' and not category and not feed and view != 'starred' %}active{% endif %}" href="/">
+      <span>すべて</span><span class="count">{{ total_unread or '' }}</span>
+    </a>
+    <a class="nav-item {% if view == 'starred' %}active{% endif %}" href="/?view=starred">
+      <span>★ あとで読む</span><span class="count">{{ starred_count or '' }}</span>
+    </a>
+    <div class="nav-heading">ジャンル</div>
+    {% for c in categories %}
+      <details class="nav-group" {% if category == c.id|string or (feed and feed in c.feeds|map(attribute='id')|list) %}open{% endif %}>
+        <summary class="nav-item {% if category == c.id|string %}active{% endif %}">
+          <a href="/?category={{ c.id }}">{{ c.name }}</a><span class="count">{{ cat_unread[c.id] or '' }}</span>
+        </summary>
+        {% for f in c.feeds|sort(attribute='title') %}
+          <a class="nav-item sub {% if feed == f.id %}active{% endif %} {% if not f.enabled %}disabled{% endif %}" href="/?feed={{ f.id }}">
+            <span>{{ f.title }}</span><span class="count">{{ unread.get(f.id) or '' }}</span>
+          </a>
+        {% endfor %}
+      </details>
+    {% endfor %}
+    {% if uncategorized %}
+      <details class="nav-group" {% if category == 'none' %}open{% endif %}>
+        <summary class="nav-item {% if category == 'none' %}active{% endif %}"><a href="/?category=none">未分類</a></summary>
+        {% for f in uncategorized %}
+          <a class="nav-item sub {% if feed == f.id %}active{% endif %}" href="/?feed={{ f.id }}">
+            <span>{{ f.title }}</span><span class="count">{{ unread.get(f.id) or '' }}</span>
+          </a>
+        {% endfor %}
+      </details>
+    {% endif %}
+  </aside>
+
+  <main class="content">
+    {% if request.query_params.get('msg') %}<div class="flash">{{ request.query_params.get('msg') }}</div>{% endif %}
+    {% if request.query_params.get('error') %}<div class="flash error">{{ request.query_params.get('error') }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

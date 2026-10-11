@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Sample AI Blog</title>
+  <link href="https://ai.example.com/" rel="alternate"/>
+  <id>urn:example:ai</id>
+  <updated>2026-10-10T00:00:00Z</updated>
+  <entry>
+    <title>OpenAI announces a new model</title>
+    <link href="https://ai.example.com/posts/new-model"/>
+    <id>urn:example:ai:1</id>
+    <updated>2026-10-09T23:00:00Z</updated>
+    <content type="html">&lt;p&gt;A long body about the model.&lt;/p&gt;</content>
+  </entry>
+</feed>
