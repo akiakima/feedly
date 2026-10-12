@@ -1,0 +1,66 @@
+# サーバーなしでニュースを取得し、メールで通知する。
+# 使い方は README の「PC を閉じていても通知を受け取る（GitHub Actions）」を参照。
+name: ニュース通知
+
+on:
+  schedule:
+    # 30 分ごと（混雑する毎時 0 分を避ける）。時刻は UTC 基準だが、配信時刻の判定は TIMEZONE で行う
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+# 最小限の権限だけを与える（リポジトリの読み取りのみ）
+permissions:
+  contents: read
+
+# 前の実行が終わる前に次が始まらないようにする（状態の取り合いを防ぐ）
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    # Variables に NOTIFY_ENABLED=true を設定するまでは動かない
+    if: vars.NOTIFY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # 前回までに取得した記事（どれを通知済みか）を復元する。ニュースの情報だけでメールアドレス等は含まない
+      - name: 前回の状態を復元
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: notify-db-${{ github.run_id }}
+          restore-keys: notify-db-
+
+      - name: 取得して通知
+        run: python -m app.cli run
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/feedly.db
+          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          NOTIFY_KEYWORDS: ${{ secrets.NOTIFY_KEYWORDS }}
+          DIGEST_TIMES: ${{ vars.DIGEST_TIMES || '07:00,18:00' }}
+          TIMEZONE: ${{ vars.TIMEZONE || 'Asia/Tokyo' }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'http://localhost:8000' }}
+          RETENTION_DAYS: "14"
+
+      - name: 状態を保存
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: notify-db-${{ github.run_id }}-${{ github.run_attempt }}

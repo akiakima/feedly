@@ -30,9 +30,11 @@ document.addEventListener("click", (e) => {
   if (link) link.closest(".article").classList.add("read");
 });
 
-// スマホでメニュー外をタップしたら閉じる
+// スマホのメニュー開閉（メニュー外をタップしたら閉じる）
 document.addEventListener("click", (e) => {
-  if (document.body.classList.contains("nav-open") && !e.target.closest(".sidebar, .menu-btn")) {
+  if (e.target.closest(".menu-btn")) {
+    document.body.classList.toggle("nav-open");
+  } else if (document.body.classList.contains("nav-open") && !e.target.closest(".sidebar, .menu-btn")) {
     document.body.classList.remove("nav-open");
   }
 });

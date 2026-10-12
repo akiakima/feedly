@@ -2,13 +2,15 @@
 
 import calendar
 import html
+import ipaddress
 import logging
 import re
+import socket
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import feedparser
 import httpx
@@ -21,6 +23,7 @@ log = logging.getLogger(__name__)
 USER_AGENT = "Mozilla/5.0 (compatible; FeedlyClone/1.0; +https://github.com/akiakima/feedly)"
 TIMEOUT = 20.0
 SUMMARY_LENGTH = 280
+MAX_BYTES = 5 * 1024 * 1024  # 1 回の取得で読み込む上限（巨大なレスポンス対策）
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _SPACE_RE = re.compile(r"\s+")
@@ -94,18 +97,66 @@ def parse_feed(content: bytes | str) -> FetchResult:
     return result
 
 
+class UnsafeURLError(ValueError):
+    pass
+
+
+def check_public_url(url: str) -> None:
+    """http(s) で、インターネット上の公開アドレスを指す URL だけを許可する。
+
+    社内ネットワークやクラウドのメタデータ（169.254.169.254 など）へ
+    アクセスさせられる SSRF を防ぐ。リダイレクト先にも毎回適用する。
+    """
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise UnsafeURLError("http:// または https:// の URL を指定してください。")
+    try:
+        infos = socket.getaddrinfo(parts.hostname, parts.port or None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise UnsafeURLError(f"ホスト名を解決できません: {parts.hostname}") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not ip.is_global:
+            raise UnsafeURLError(f"内部ネットワークのアドレスにはアクセスできません: {parts.hostname}")
+
+
+def _client(headers: dict | None = None) -> httpx.Client:
+    def _guard(request: httpx.Request):
+        check_public_url(str(request.url))
+
+    return httpx.Client(
+        timeout=TIMEOUT,
+        follow_redirects=True,
+        max_redirects=5,
+        headers={"User-Agent": USER_AGENT, **(headers or {})},
+        event_hooks={"request": [_guard]},
+    )
+
+
+def _get(client: httpx.Client, url: str) -> tuple[httpx.Response, bytes]:
+    with client.stream("GET", url) as res:
+        if res.status_code == 304:
+            return res, b""
+        res.raise_for_status()
+        body = bytearray()
+        for chunk in res.iter_bytes():
+            body.extend(chunk)
+            if len(body) > MAX_BYTES:
+                raise ValueError("レスポンスが大きすぎます（5MB 超）。")
+        return res, bytes(body)
+
+
 def download_feed(url: str, etag: str = "", modified: str = "") -> FetchResult:
-    headers = {"User-Agent": USER_AGENT}
+    headers = {}
     if etag:
         headers["If-None-Match"] = etag
     if modified:
         headers["If-Modified-Since"] = modified
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=True, headers=headers) as client:
-        res = client.get(url)
+    with _client(headers) as client:
+        res, content = _get(client, url)
     if res.status_code == 304:
         return FetchResult(not_modified=True, etag=etag, modified=modified)
-    res.raise_for_status()
-    result = parse_feed(res.content)
+    result = parse_feed(content)
     result.etag = res.headers.get("etag", "")
     result.modified = res.headers.get("last-modified", "")
     return result
@@ -135,20 +186,20 @@ def find_feed_links(page_html: str, base_url: str) -> list[str]:
 
 def discover_feed(url: str) -> tuple[str, FetchResult]:
     """URL がフィードならそのまま、Web ページなら <link rel="alternate"> からフィードを探す。"""
+    url = url.strip()
     if not re.match(r"^https?://", url):
         url = "https://" + url
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
-        res = client.get(url)
-        res.raise_for_status()
+    with _client() as client:
+        res, content = _get(client, url)
         try:
-            return str(res.url), parse_feed(res.content)
+            return str(res.url), parse_feed(content)
         except ValueError:
             pass
-        for candidate in find_feed_links(res.text, str(res.url)):
+        page = content.decode(res.encoding or "utf-8", errors="replace")
+        for candidate in find_feed_links(page, str(res.url))[:5]:
             try:
-                sub = client.get(candidate)
-                sub.raise_for_status()
-                return str(sub.url), parse_feed(sub.content)
+                sub, sub_content = _get(client, candidate)
+                return str(sub.url), parse_feed(sub_content)
             except (httpx.HTTPError, ValueError):
                 continue
     raise ValueError("このページから RSS / Atom フィードが見つかりませんでした。")
@@ -227,15 +278,12 @@ def fetch_all(session) -> list[Article]:
     return fetch_feeds(session, feeds)
 
 
-def purge_old_articles(session, retention_days: int) -> int:
-    """既読かつ未保存の古い記事を削除する。"""
+def purge_old_articles(session, retention_days: int, only_read: bool = True) -> int:
+    """古い記事を削除する。既定では既読かつ「あとで読む」でない記事だけ。"""
     cutoff = utcnow() - timedelta(days=retention_days)
-    res = session.execute(
-        delete(Article).where(
-            Article.fetched_at < cutoff,
-            Article.is_starred.is_(False),
-            Article.is_read.is_(True),
-        )
-    )
+    conds = [Article.fetched_at < cutoff, Article.is_starred.is_(False)]
+    if only_read:
+        conds.append(Article.is_read.is_(True))
+    res = session.execute(delete(Article).where(*conds))
     session.commit()
     return res.rowcount or 0

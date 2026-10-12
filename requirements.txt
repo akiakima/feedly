@@ -6,4 +6,5 @@ sqlalchemy==2.1.4
 feedparser==6.0.14
 httpx==0.28.1
 apscheduler==3.11.3
+defusedxml==0.7.1
 tzdata

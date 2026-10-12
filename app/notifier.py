@@ -135,11 +135,16 @@ def match_keywords(article: Article, keywords: list[str]) -> list[str]:
     return [k for k in keywords if k.casefold() in haystack]
 
 
-def send_keyword_alerts(session) -> int:
-    """登録キーワードに一致した新着記事をすぐに通知する。"""
+def send_keyword_alerts(session, keywords: list[str] | None = None) -> int:
+    """登録キーワードに一致した新着記事をすぐに通知する。
+
+    keywords を渡すと DB のキーワードの代わりに使う（GitHub Actions モード用）。
+    """
     if get_setting(session, "keyword_alert_enabled", "1") != "1":
         return 0
-    keywords = [k for k in session.scalars(select(Keyword.word)) if k.strip()]
+    if keywords is None:
+        keywords = list(session.scalars(select(Keyword.word)))
+    keywords = [k.strip() for k in keywords if k.strip()]
     pending = list(
         session.scalars(
             select(Article)

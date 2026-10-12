@@ -6,7 +6,7 @@ import secrets
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -33,6 +33,7 @@ log = logging.getLogger(__name__)
 
 APP_DIR = Path(__file__).parent
 PAGE_SIZE = 50
+MAX_UPLOAD_BYTES = 1024 * 1024
 
 
 def seed_presets(session, only_missing: bool = False) -> int:
@@ -73,6 +74,41 @@ app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 templates.env.filters["localtime"] = format_local
 templates.env.filters["ago"] = relative_time
+
+
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+        "form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+    ),
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    # 記事を開いたときに、このアプリの URL を相手サイトに渡さない
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+}
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _same_origin(request: Request) -> bool:
+    """他サイトから送られたフォーム（CSRF）を拒否する。Origin / Referer がない場合は許可。"""
+    source = request.headers.get("origin") or request.headers.get("referer")
+    if not source or source == "null":
+        return source is None
+    return urlsplit(source).netloc == request.headers.get("host", "")
+
+
+@app.middleware("http")
+async def security(request: Request, call_next):
+    if request.method in UNSAFE_METHODS and not _same_origin(request):
+        return Response("他のサイトからのリクエストは受け付けません。", status_code=403)
+    response = await call_next(request)
+    for key, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(key, value)
+    if request.url.scheme == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response
 
 
 @app.middleware("http")
@@ -338,7 +374,9 @@ def edit_feed(
             raise HTTPException(404)
         feed.title = title.strip()[:300] or feed.title
         new_url = url.strip()
-        if new_url and new_url != feed.url:
+        if not new_url.startswith(("http://", "https://")):
+            return redirect("/feeds", "URL は http:// か https:// で始めてください", error=True)
+        if new_url != feed.url:
             if session.scalar(select(Feed).where(Feed.url == new_url)):
                 return redirect("/feeds", "同じ URL のフィードが既にあります", error=True)
             feed.url = new_url
@@ -442,15 +480,18 @@ def opml_export():
 
 @app.post("/opml")
 async def opml_import(file: UploadFile = File(...)):
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        return redirect("/feeds", "ファイルが大きすぎます（1MB まで）", error=True)
     try:
-        entries = parse_opml(await file.read())
+        entries = parse_opml(data)
     except Exception as exc:  # noqa: BLE001
         return redirect("/feeds", f"OPML を読み込めませんでした: {exc}", error=True)
     added = 0
     with SessionLocal() as session:
         existing = set(session.scalars(select(Feed.url)))
         for cat_name, title, url, site in entries:
-            if url in existing:
+            if url in existing or not url.startswith(("http://", "https://")):
                 continue
             cat = get_or_create_category(session, cat_name or "")
             session.add(Feed(title=title[:300], url=url, site_url=site[:1000], category_id=cat.id if cat else None))

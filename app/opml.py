@@ -1,7 +1,8 @@
 """OPML（フィード一覧の標準フォーマット）の入出力。feedly などとの移行用。"""
 
-import xml.etree.ElementTree as ET
 from xml.sax.saxutils import quoteattr
+
+from defusedxml import ElementTree as ET
 
 from .db import Category, Feed
 

@@ -1,0 +1,11 @@
+# 依存ライブラリと GitHub Actions のセキュリティ更新を自動で提案する（GitHub の無料機能）
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
