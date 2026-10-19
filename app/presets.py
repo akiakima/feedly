@@ -24,11 +24,11 @@ CATEGORIES = [
 
 # (カテゴリ, タイトル, フィード URL)
 FEEDS = [
-    ("経済", "NHK ニュース 経済", "https://www3.nhk.or.jp/rss/news/cat5.xml"),
+    ("経済", "Google ニュース: 日本経済", google_news("日本経済 景気")),
     ("経済", "東洋経済オンライン", "https://toyokeizai.net/list/feed/rss"),
     ("ビジネス", "ダイヤモンド・オンライン", "https://diamond.jp/list/feed/rss/dol"),
     ("ビジネス", "PRESIDENT Online", "https://president.jp/list/rss"),
-    ("ベンチャー・スタートアップ", "BRIDGE", "https://thebridge.jp/feed"),
+    ("ベンチャー・スタートアップ", "Google ニュース: IPO 新規上場", google_news("IPO 新規上場")),
     (
         "ベンチャー・スタートアップ",
         "Google ニュース: スタートアップ 資金調達",

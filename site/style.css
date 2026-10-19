@@ -1,0 +1,193 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --accent: #2b7a4b;
+  --accent-soft: #e6f4ea;
+  --ir: #8a4b00;
+  --ir-soft: #fdf0dc;
+  --danger: #c0392b;
+  --star: #e5a50a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a;
+    --surface: #1e2125;
+    --text: #e6e8eb;
+    --muted: #9aa1a9;
+    --border: #2f3338;
+    --accent: #5cc58a;
+    --accent-soft: #1f3a2b;
+    --ir: #f0b45c;
+    --ir-soft: #3a2c18;
+    --danger: #ef6b5e;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+h1 { font-size: 22px; margin: 0 0 4px; }
+.muted { color: var(--muted); font-size: 13px; }
+.error { color: var(--danger); font-size: 14px; margin: 0; }
+
+input[type=search], input[type=password] {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+  width: 100%;
+}
+
+.btn, .tabs button, .link-btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: .6; }
+.link-btn { border: none; background: none; color: var(--muted); }
+
+/* ---------- 上部バー ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; font-size: 17px; white-space: nowrap; }
+.search { flex: 1; max-width: 420px; }
+.topbar .link-btn { margin-left: auto; }
+.menu-btn { display: none; font-size: 20px; background: none; border: none; color: var(--text); cursor: pointer; }
+
+/* ---------- ログイン ---------- */
+.login { display: flex; justify-content: center; padding: 48px 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+#login-form { width: 100%; max-width: 420px; display: grid; gap: 12px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+
+/* ---------- レイアウト ---------- */
+.layout { display: flex; min-height: calc(100vh - 53px); }
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 53px;
+  height: calc(100vh - 53px);
+  overflow-y: auto;
+}
+.content { flex: 1; min-width: 0; padding: 20px 24px; max-width: 900px; }
+
+.nav-heading { font-size: 12px; color: var(--muted); padding: 12px 10px 4px; }
+.nav-item {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item:hover { background: var(--bg); }
+.nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.count { color: var(--muted); font-size: 12px; font-weight: normal; }
+
+/* ---------- 記事一覧 ---------- */
+.list-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.actions { display: flex; gap: 8px; align-items: center; }
+.tabs { display: flex; }
+.tabs button { border-radius: 0; }
+.tabs button:first-child { border-radius: 6px 0 0 6px; }
+.tabs button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.articles { list-style: none; margin: 0; padding: 0; }
+.article {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.article-body { flex: 1; min-width: 0; }
+.article-title { color: var(--text); font-weight: 600; font-size: 16px; text-decoration: none; overflow-wrap: anywhere; }
+.article-title:hover { color: var(--accent); }
+.article.read .article-title { color: var(--muted); font-weight: normal; }
+.summary {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.article.read .summary { display: none; }
+.meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.tag { background: var(--accent-soft); color: var(--accent); padding: 0 6px; border-radius: 4px; }
+.tag.ir { background: var(--ir-soft); color: var(--ir); }
+.article-actions { display: flex; flex-direction: column; gap: 4px; }
+.icon { background: none; border: 1px solid transparent; border-radius: 6px; width: 36px; height: 36px; cursor: pointer; color: var(--muted); font-size: 16px; }
+.icon:hover { border-color: var(--border); }
+.icon.star.on { color: var(--star); }
+.article.read .readmark { color: var(--accent); }
+
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); }
+.more { display: flex; justify-content: center; margin: 16px 0; }
+
+/* ---------- スマホ ---------- */
+@media (max-width: 800px) {
+  .menu-btn { display: block; }
+  .topbar { gap: 10px; flex-wrap: wrap; }
+  .search { order: 3; flex-basis: 100%; max-width: none; }
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform .2s;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, .2);
+  }
+  body.nav-open .sidebar { transform: none; }
+  .content { padding: 16px; }
+}

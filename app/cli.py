@@ -16,15 +16,15 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from . import presets
 from .config import BASE_DIR, settings
-from .db import Category, Feed, SessionLocal, get_setting, init_db, set_setting, utcnow
+from .db import Article, Category, Feed, SessionLocal, get_setting, init_db, set_setting, utcnow
 from .edinet import FEED_URL as EDINET_FEED_URL
 from .edinet import fetch_edinet, parse_watchlist
 from .fetcher import fetch_all, purge_old_articles
-from .notifier import MailNotConfigured, send_digest, send_keyword_alerts
+from .notifier import MailNotConfigured, send_digest, send_keyword_alerts, smtp_configured
 from .opml import parse_opml
 from .scheduler import parse_times
 from .timeutil import LOCAL_TZ
@@ -32,6 +32,7 @@ from .timeutil import LOCAL_TZ
 log = logging.getLogger("app.cli")
 
 LAST_DIGEST_KEY = "last_digest_at"
+STALE_DAYS = 14  # これより長く更新がないフィードは「止まっている」とみなす
 
 
 def desired_feeds(opml_path: Path | None) -> list[tuple[str | None, str, str]]:
@@ -129,6 +130,14 @@ def run(opml_path: Path | None) -> int:
                 log.warning("取得エラー: %s (%s)", feed.title, feed.last_error[:150])
 
         status = 0
+        if not smtp_configured() and not settings.mail_to:
+            # メールを使わず閲覧サイトだけ使う場合。後でメールを設定したときに
+            # 過去の記事がまとめて届かないよう、通知済みにしておく
+            session.execute(update(Article).values(alerted=True, digested=True))
+            session.commit()
+            log.info("メールが未設定のため、通知は送りません")
+            purge_old_articles(session, settings.retention_days, only_read=False)
+            return status
         try:
             hits = send_keyword_alerts(session, env_keywords())
             log.info("キーワード通知: %d 件", hits)
@@ -162,9 +171,14 @@ def check(feeds: list[tuple[str | None, str, str]]) -> int:
         try:
             result = download_feed(url)
             latest = max((e.published_at for e in result.entries), default=None)
-            print(f"OK  [{cat or '-'}] {title}: {len(result.entries)} 件, 最新 {latest:%Y-%m-%d %H:%M} UTC" if latest
-                  else f"NG  [{cat or '-'}] {title}: 記事が 0 件 ({url})")
-            ng += 0 if latest else 1
+            if latest is None:
+                print(f"NG  [{cat or '-'}] {title}: 記事が 0 件 ({url})")
+                ng += 1
+            elif latest < utcnow() - timedelta(days=STALE_DAYS):
+                print(f"NG  [{cat or '-'}] {title}: {STALE_DAYS} 日以上更新がない（最新 {latest:%Y-%m-%d}）({url})")
+                ng += 1
+            else:
+                print(f"OK  [{cat or '-'}] {title}: {len(result.entries)} 件, 最新 {latest:%Y-%m-%d %H:%M} UTC")
         except Exception as exc:  # noqa: BLE001
             print(f"NG  [{cat or '-'}] {title}: {type(exc).__name__}: {str(exc)[:120]} ({url})")
             ng += 1
@@ -182,12 +196,27 @@ def main(argv: list[str] | None = None) -> int:
         help="購読フィードの OPML（なければおすすめフィードを使う）",
     )
     sub.add_parser("check-presets", help="おすすめフィードが取得できるか確認する")
+    site_p = sub.add_parser("build-site", help="暗号化した閲覧サイトを書き出す")
+    site_p.add_argument("--out", default="_site", help="出力先ディレクトリ")
+    site_p.add_argument("--days", type=int, default=int(os.environ.get("SITE_DAYS", "7")), help="載せる日数")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     # httpx のリクエストログには URL（API キーを含みうる）が出るので抑える
     logging.getLogger("httpx").setLevel(logging.WARNING)
     if os.environ.get("LOG_FEED_DETAILS", "").lower() != "true":
         logging.getLogger("app.fetcher").setLevel(logging.ERROR)
+    if args.command == "build-site":
+        from .site import SitePasswordError, build_site
+
+        init_db()
+        try:
+            with SessionLocal() as session:
+                count = build_site(session, Path(args.out), os.environ.get("SITE_PASSWORD", ""), args.days)
+        except SitePasswordError as exc:
+            log.error("%s", exc)
+            return 1
+        log.info("閲覧サイトを作成しました（%d 件）", count)
+        return 0
     if args.command == "check-presets":
         return check(list(presets.FEEDS))
     if args.command == "run":

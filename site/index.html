@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ニュースまとめ</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" type="button" aria-label="メニュー" hidden>☰</button>
+  <span class="brand">ニュースまとめ</span>
+  <input class="search" type="search" placeholder="記事を検索" aria-label="記事を検索" hidden>
+  <button class="link-btn" id="logout" type="button" hidden>ロック</button>
+</header>
+
+<main id="login" class="login">
+  <form id="login-form" class="card">
+    <h1>合言葉を入力</h1>
+    <p class="muted">記事は暗号化されています。設定した合言葉（SITE_PASSWORD）で開きます。</p>
+    <input id="password" type="password" autocomplete="current-password" required aria-label="合言葉">
+    <label class="check"><input id="remember" type="checkbox"> この端末で記憶する（自分専用の端末のときだけ）</label>
+    <button class="btn primary" type="submit">開く</button>
+    <p id="login-error" class="error" hidden></p>
+  </form>
+</main>
+
+<div id="app" class="layout" hidden>
+  <aside class="sidebar" id="sidebar"></aside>
+  <section class="content">
+    <div class="list-header">
+      <div>
+        <h1 id="title">すべて</h1>
+        <div class="muted" id="meta"></div>
+      </div>
+      <div class="actions">
+        <div class="tabs" id="tabs">
+          <button type="button" data-view="unread" class="active">未読</button>
+          <button type="button" data-view="all">すべて</button>
+        </div>
+        <button class="btn" id="mark-all" type="button">すべて既読</button>
+      </div>
+    </div>
+    <ul class="articles" id="articles"></ul>
+    <div class="empty" id="empty" hidden></div>
+    <div class="more"><button class="btn" id="more" type="button" hidden>さらに表示</button></div>
+  </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -78,6 +78,22 @@ jobs:
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'http://localhost:8000' }}
           RETENTION_DAYS: "14"
 
+      # 閲覧サイト（GitHub Pages）。記事は SITE_PASSWORD で暗号化してから公開する
+      # メール送信に失敗しても、サイトは更新する
+      - name: 閲覧サイトを作成
+        if: ${{ !cancelled() && vars.SITE_ENABLED == 'true' }}
+        run: python -m app.cli build-site --out _site
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/feedly.db
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          SITE_DAYS: ${{ vars.SITE_DAYS || '7' }}
+
+      - name: 閲覧サイトをアップロード
+        if: ${{ !cancelled() && vars.SITE_ENABLED == 'true' && hashFiles('_site/data.json') != '' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
       - name: 状態を暗号化
         if: always()
         env:
@@ -92,3 +108,19 @@ jobs:
         with:
           path: state.enc
           key: notify-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # 公開の権限はこのジョブだけに与える
+  deploy-site:
+    needs: notify
+    if: ${{ !cancelled() && needs.notify.result != 'skipped' && vars.SITE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
