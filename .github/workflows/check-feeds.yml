@@ -1,0 +1,25 @@
+# おすすめフィード（app/presets.py）が取得できるかを確認する。公開情報だけを扱い、Secrets は使わない
+name: フィード確認
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 0 * * 1"  # 毎週月曜
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m app.cli check-presets

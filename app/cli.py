@@ -153,6 +153,25 @@ def run(opml_path: Path | None) -> int:
     return status
 
 
+def check(feeds: list[tuple[str | None, str, str]]) -> int:
+    """フィードが取得できるかを 1 件ずつ確認して表示する（DB には保存しない）。"""
+    from .fetcher import download_feed
+
+    ng = 0
+    for cat, title, url in feeds:
+        try:
+            result = download_feed(url)
+            latest = max((e.published_at for e in result.entries), default=None)
+            print(f"OK  [{cat or '-'}] {title}: {len(result.entries)} 件, 最新 {latest:%Y-%m-%d %H:%M} UTC" if latest
+                  else f"NG  [{cat or '-'}] {title}: 記事が 0 件 ({url})")
+            ng += 0 if latest else 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"NG  [{cat or '-'}] {title}: {type(exc).__name__}: {str(exc)[:120]} ({url})")
+            ng += 1
+    print(f"結果: {len(feeds) - ng} / {len(feeds)} 件が正常")
+    return 1 if ng else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -162,12 +181,15 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("FEEDS_OPML", str(BASE_DIR / "feeds.opml")),
         help="購読フィードの OPML（なければおすすめフィードを使う）",
     )
+    sub.add_parser("check-presets", help="おすすめフィードが取得できるか確認する")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     # httpx のリクエストログには URL（API キーを含みうる）が出るので抑える
     logging.getLogger("httpx").setLevel(logging.WARNING)
     if os.environ.get("LOG_FEED_DETAILS", "").lower() != "true":
         logging.getLogger("app.fetcher").setLevel(logging.ERROR)
+    if args.command == "check-presets":
+        return check(list(presets.FEEDS))
     if args.command == "run":
         return run(Path(args.opml) if args.opml else None)
     return 2
