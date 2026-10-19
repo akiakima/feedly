@@ -20,7 +20,7 @@ from .db import Article, Feed, utcnow
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = "Mozilla/5.0 (compatible; FeedlyClone/1.0; +https://github.com/akiakima/feedly)"
+USER_AGENT = "Mozilla/5.0 (compatible; NewsDigestReader/1.0)"
 TIMEOUT = 20.0
 SUMMARY_LENGTH = 280
 MAX_BYTES = 5 * 1024 * 1024  # 1 回の取得で読み込む上限（巨大なレスポンス対策）
@@ -274,7 +274,9 @@ def fetch_feeds(session, feeds: list[Feed], workers: int = 6) -> list[Article]:
 
 
 def fetch_all(session) -> list[Article]:
-    feeds = list(session.scalars(select(Feed).where(Feed.enabled.is_(True))))
+    feeds = list(
+        session.scalars(select(Feed).where(Feed.enabled.is_(True), Feed.url.startswith("http")))
+    )
     return fetch_feeds(session, feeds)
 
 

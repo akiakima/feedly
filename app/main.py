@@ -18,6 +18,13 @@ from sqlalchemy.orm import joinedload, selectinload
 from . import presets, scheduler
 from .config import settings
 from .db import Article, Category, Feed, Keyword, SessionLocal, get_setting, init_db, set_setting
+from .edinet import (
+    ensure_feed,
+    fetch_edinet,
+    is_edinet_feed,
+    parse_watchlist,
+    watchlist_from_settings,
+)
 from .fetcher import discover_feed, fetch_feeds, store_entries
 from .notifier import (
     mail_recipient,
@@ -29,6 +36,7 @@ from .opml import export_opml, parse_opml
 from .timeutil import format_local, relative_time
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)  # URL に API キーが含まれうるため
 log = logging.getLogger(__name__)
 
 APP_DIR = Path(__file__).parent
@@ -374,7 +382,7 @@ def edit_feed(
             raise HTTPException(404)
         feed.title = title.strip()[:300] or feed.title
         new_url = url.strip()
-        if not new_url.startswith(("http://", "https://")):
+        if new_url != feed.url and not new_url.startswith(("http://", "https://")):
             return redirect("/feeds", "URL は http:// か https:// で始めてください", error=True)
         if new_url != feed.url:
             if session.scalar(select(Feed).where(Feed.url == new_url)):
@@ -404,7 +412,12 @@ def refresh_feed(feed_id: int):
         feed = session.get(Feed, feed_id)
         if not feed:
             raise HTTPException(404)
-        new = fetch_feeds(session, [feed], workers=1)
+        if is_edinet_feed(feed):
+            new = fetch_edinet(
+                session, settings.edinet_api_key, watchlist_from_settings(session, settings.ir_watchlist)
+            )
+        else:
+            new = fetch_feeds(session, [feed], workers=1)
         if feed.last_error:
             return redirect("/feeds", f"取得に失敗しました: {feed.last_error}", error=True)
         return redirect("/feeds", f"「{feed.title}」を更新しました（新着 {len(new)} 件）")
@@ -521,6 +534,8 @@ def settings_page(request: Request):
             "smtp_user": settings.smtp_user,
             "fetch_interval": settings.fetch_interval_minutes,
             "next_digests": sorted(j.next_run_time for j in jobs if j.next_run_time),
+            "ir_watchlist": " ".join(watchlist_from_settings(session, settings.ir_watchlist)),
+            "edinet_configured": bool(settings.edinet_api_key),
         }
     return templates.TemplateResponse(request, "settings.html", ctx)
 
@@ -542,6 +557,17 @@ def save_settings(
     if scheduler.scheduler.running:
         scheduler.schedule_digests()
     return redirect("/settings", "設定を保存しました")
+
+
+@app.post("/ir-watchlist")
+def save_ir_watchlist(codes: str = Form("")):
+    parsed = parse_watchlist(codes)
+    with SessionLocal() as session:
+        set_setting(session, "ir_watchlist", " ".join(parsed))
+        if parsed:
+            ensure_feed(session)
+        session.commit()
+    return redirect("/settings", f"IR ウォッチリストを保存しました（{len(parsed)} 銘柄）")
 
 
 @app.post("/keywords")

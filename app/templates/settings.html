@@ -34,6 +34,22 @@
 </section>
 
 <section class="card">
+  <h2>IR 開示（EDINET）</h2>
+  <p class="muted">
+    ウォッチリストの銘柄が EDINET に書類（有価証券報告書・臨時報告書・自己株券買付状況報告書など）を提出すると、
+    「IR・開示」ジャンルに表示し、すぐにメールで知らせます。証券コード（4 桁）を空白かカンマ区切りで入力してください。
+  </p>
+  {% if not edinet_configured %}
+  <div class="flash error">EDINET の API キーが未設定です。<code>.env</code> に <code>EDINET_API_KEY</code> を設定して再起動してください（取得方法は README を参照）。</div>
+  {% endif %}
+  <form method="post" action="/ir-watchlist" class="inline">
+    <input type="text" name="codes" value="{{ ir_watchlist }}" placeholder="例: 7203 6758 9984" class="wide">
+    <button type="submit" class="btn">保存</button>
+  </form>
+  <p class="muted">決算短信など取引所（TDnet）の適時開示は、各社の IR ページの RSS を「フィード管理」で追加してください。</p>
+</section>
+
+<section class="card">
   <h2>キーワード通知</h2>
   <p class="muted">タイトルか概要にキーワードを含む新着記事があると、取得のたびにメールで知らせます（大文字・小文字は区別しません）。</p>
   <form method="post" action="/keywords" class="inline">

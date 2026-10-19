@@ -21,6 +21,8 @@ from sqlalchemy import select
 from . import presets
 from .config import BASE_DIR, settings
 from .db import Category, Feed, SessionLocal, get_setting, init_db, set_setting, utcnow
+from .edinet import FEED_URL as EDINET_FEED_URL
+from .edinet import fetch_edinet, parse_watchlist
 from .fetcher import fetch_all, purge_old_articles
 from .notifier import MailNotConfigured, send_digest, send_keyword_alerts
 from .opml import parse_opml
@@ -33,7 +35,14 @@ LAST_DIGEST_KEY = "last_digest_at"
 
 
 def desired_feeds(opml_path: Path | None) -> list[tuple[str | None, str, str]]:
-    """購読するフィード一覧。feeds.opml があればそれを、なければおすすめを使う。"""
+    """購読するフィード一覧。
+
+    優先順: 環境変数 FEEDS_OPML_XML（Secret に入れれば購読先を非公開にできる）
+    → feeds.opml ファイル → おすすめフィード。
+    """
+    inline = os.environ.get("FEEDS_OPML_XML", "").strip()
+    if inline:
+        return [(cat, title, url) for cat, title, url, _ in parse_opml(inline.encode())]
     if opml_path and opml_path.exists():
         return [(cat, title, url) for cat, title, url, _ in parse_opml(opml_path.read_bytes())]
     return list(presets.FEEDS)
@@ -66,7 +75,7 @@ def sync_feeds(session, wanted: list[tuple[str | None, str, str]]) -> None:
             feed.category_id = category_id(cat_name)
             feed.enabled = True
     for url, feed in by_url.items():
-        if url not in wanted_urls:
+        if url not in wanted_urls and url != EDINET_FEED_URL:
             session.delete(feed)
     session.commit()
 
@@ -107,10 +116,17 @@ def run(opml_path: Path | None) -> int:
     with SessionLocal() as session:
         sync_feeds(session, desired_feeds(opml_path))
         new_articles = fetch_all(session)
+        codes = parse_watchlist(settings.ir_watchlist)
+        if codes and not settings.edinet_api_key:
+            log.warning("IR_WATCHLIST が設定されていますが EDINET_API_KEY がないため、IR 開示は取得しません")
+        new_articles += fetch_edinet(session, settings.edinet_api_key, codes)
         failed = list(session.scalars(select(Feed).where(Feed.last_error != "")))
         log.info("新着 %d 件（取得エラー %d フィード）", len(new_articles), len(failed))
-        for feed in failed:
-            log.warning("取得エラー: %s (%s)", feed.title, feed.last_error[:150])
+        # 公開リポジトリでは Actions のログを誰でも見られるので、購読先の名前や URL は
+        # LOG_FEED_DETAILS=true のときだけ出す
+        if os.environ.get("LOG_FEED_DETAILS", "").lower() == "true":
+            for feed in failed:
+                log.warning("取得エラー: %s (%s)", feed.title, feed.last_error[:150])
 
         status = 0
         try:
@@ -148,6 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    # httpx のリクエストログには URL（API キーを含みうる）が出るので抑える
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    if os.environ.get("LOG_FEED_DETAILS", "").lower() != "true":
+        logging.getLogger("app.fetcher").setLevel(logging.ERROR)
     if args.command == "run":
         return run(Path(args.opml) if args.opml else None)
     return 2

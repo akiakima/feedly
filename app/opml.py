@@ -21,11 +21,17 @@ def export_opml(categories: list[Category], uncategorized: list[Feed]) -> str:
             f"xmlUrl={quoteattr(feed.url)} htmlUrl={quoteattr(feed.site_url or '')}/>"
         )
 
+    def is_rss(feed: Feed) -> bool:
+        return feed.url.startswith(("http://", "https://"))
+
     for cat in categories:
+        feeds = [f for f in cat.feeds if is_rss(f)]
+        if not feeds:
+            continue
         lines.append(f"    <outline text={quoteattr(cat.name)} title={quoteattr(cat.name)}>")
-        lines.extend(outline(f, "      ") for f in cat.feeds)
+        lines.extend(outline(f, "      ") for f in feeds)
         lines.append("    </outline>")
-    lines.extend(outline(f, "    ") for f in uncategorized)
+    lines.extend(outline(f, "    ") for f in uncategorized if is_rss(f))
     lines += ["  </body>", "</opml>", ""]
     return "\n".join(lines)
 

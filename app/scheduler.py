@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .config import settings
 from .db import SessionLocal, get_setting
+from .edinet import fetch_edinet, watchlist_from_settings
 from .fetcher import fetch_all, purge_old_articles
 from .notifier import MailNotConfigured, send_digest, send_keyword_alerts
 
@@ -36,6 +37,9 @@ def fetch_job() -> int:
     try:
         with SessionLocal() as session:
             new_articles = fetch_all(session)
+            new_articles += fetch_edinet(
+                session, settings.edinet_api_key, watchlist_from_settings(session, settings.ir_watchlist)
+            )
             log.info("新着 %d 件", len(new_articles))
             try:
                 send_keyword_alerts(session)

@@ -48,6 +48,8 @@ class Settings:
     mail_from: str
     mail_to: str
     digest_times: str
+    edinet_api_key: str
+    ir_watchlist: str
 
 
 def load_settings() -> Settings:
@@ -70,6 +72,8 @@ def load_settings() -> Settings:
         mail_from=os.environ.get("MAIL_FROM", ""),
         mail_to=os.environ.get("MAIL_TO", ""),
         digest_times=os.environ.get("DIGEST_TIMES", "07:00,18:00"),
+        edinet_api_key=os.environ.get("EDINET_API_KEY", "").strip(),
+        ir_watchlist=os.environ.get("IR_WATCHLIST", ""),
     )
 
 

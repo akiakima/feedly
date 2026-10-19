@@ -191,6 +191,7 @@ input[type=text], input[type=email], input[type=search], input[type=number], sel
 .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
 .inline form { margin: 0; }
 .narrow { width: 70px; }
+.wide { flex: 1; min-width: 200px; max-width: 420px; }
 .hint { margin-top: 12px; font-size: 14px; }
 .hint summary { cursor: pointer; color: var(--accent); }
 

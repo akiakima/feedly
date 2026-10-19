@@ -35,13 +35,27 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # 前回までに取得した記事（どれを通知済みか）を復元する。ニュースの情報だけでメールアドレス等は含まない
+      # 前回までの状態（どの記事を通知済みか）を復元する。
+      # 状態には購読先や IR 銘柄が含まれるので、Secret の鍵で暗号化してキャッシュに置く
       - name: 前回の状態を復元
         uses: actions/cache/restore@v4
         with:
-          path: data
-          key: notify-db-${{ github.run_id }}
-          restore-keys: notify-db-
+          path: state.enc
+          key: notify-state-${{ github.run_id }}
+          restore-keys: notify-state-
+
+      - name: 状態を復号
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY || secrets.SMTP_PASSWORD }}
+        run: |
+          set -o pipefail
+          mkdir -p data
+          if [ -f state.enc ]; then
+            if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:STATE_KEY -in state.enc | tar -xz -C data; then
+              echo "::warning::前回の状態を復号できませんでした（鍵が変わった可能性）。新しく始めます"
+              rm -rf data && mkdir -p data
+            fi
+          fi
 
       - name: 取得して通知
         run: python -m app.cli run
@@ -53,14 +67,28 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           NOTIFY_KEYWORDS: ${{ secrets.NOTIFY_KEYWORDS }}
+          # 購読先を非公開にしたい場合は、OPML の中身をそのまま Secret に入れる
+          FEEDS_OPML_XML: ${{ secrets.FEEDS_OPML_XML }}
+          # IR 開示（EDINET）。どちらも Secret に入れ、ウォッチリストを公開しない
+          EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+          IR_WATCHLIST: ${{ secrets.IR_WATCHLIST }}
+          LOG_FEED_DETAILS: ${{ vars.LOG_FEED_DETAILS || 'false' }}
           DIGEST_TIMES: ${{ vars.DIGEST_TIMES || '07:00,18:00' }}
           TIMEZONE: ${{ vars.TIMEZONE || 'Asia/Tokyo' }}
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'http://localhost:8000' }}
           RETENTION_DAYS: "14"
 
+      - name: 状態を暗号化
+        if: always()
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY || secrets.SMTP_PASSWORD }}
+        run: |
+          set -o pipefail
+          tar -cz -C data . | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:STATE_KEY -out state.enc
+
       - name: 状態を保存
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: data
-          key: notify-db-${{ github.run_id }}-${{ github.run_attempt }}
+          path: state.enc
+          key: notify-state-${{ github.run_id }}-${{ github.run_attempt }}

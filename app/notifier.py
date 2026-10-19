@@ -158,6 +158,8 @@ def send_keyword_alerts(session, keywords: list[str] | None = None) -> int:
     hits = []
     for article in pending:
         matched = match_keywords(article, keywords) if keywords else []
+        if article.feed.url.startswith("edinet://"):
+            matched = ["IR開示", *matched]
         if matched:
             hits.append((article, matched))
 
