@@ -90,7 +90,7 @@ jobs:
 
       - name: 閲覧サイトをアップロード
         if: ${{ !cancelled() && vars.SITE_ENABLED == 'true' && hashFiles('_site/data.json') != '' }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
