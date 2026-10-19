@@ -38,7 +38,7 @@ jobs:
       # 前回までの状態（どの記事を通知済みか）を復元する。
       # 状態には購読先や IR 銘柄が含まれるので、Secret の鍵で暗号化してキャッシュに置く
       - name: 前回の状態を復元
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: state.enc
           key: notify-state-${{ github.run_id }}
@@ -88,7 +88,7 @@ jobs:
 
       - name: 状態を保存
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: state.enc
           key: notify-state-${{ github.run_id }}-${{ github.run_attempt }}
